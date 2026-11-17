@@ -78,6 +78,13 @@ så du kan prova alla funktioner utan att först hämta något från minpension.
 
 Bilder i denna README är också tagna med demo-planen.
 
+Du behöver inte öppna demo-filen för att få med dig dess inställningar.
+När appen startar utan en tidigare sparad fil att återöppna läser den in
+grundinställningarna (sparande, tillväxt, åldersintervall, utgifter och
+utgiftskategorier) från demo-filen. Hämtar du en egen plan direkt utgår
+den alltså från samma inställningar. Ändra dem så att de stämmer för dig
+och spara med **Arkiv → Spara**.
+
 Denna README finns även inbyggd i appen: **Hjälp-menyn** öppnar den i en
 läsare med klickbara avsnitt och länkar till [BERAKNINGAR.md](BERAKNINGAR.md).
 

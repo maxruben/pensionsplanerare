@@ -8265,6 +8265,10 @@ class PensionPlannerApp:
         _startup_log('try_auto_load')
         if not self._try_auto_load():
             _startup_log('add_tab (no auto-load)')
+            # Ingen fil att återöppna (t.ex. första starten): utgå från
+            # grundinställningarna i demo-filen så att en plan som hämtas
+            # direkt får samma sparande, utgifter m.m. som demo-planerna.
+            self._apply_default_settings()
             self.add_tab()  # första planen om ingen fil kunde laddas
         _startup_log('update_set1_lock')
         # Justera Set 1-lock efter att både layout och ev. fil-laddning körts
@@ -11006,6 +11010,32 @@ class PensionPlannerApp:
         for tab in self.tabs:
             tab.paste_text.edit_modified(False)
         self._update_window_title()
+
+    def _apply_default_settings(self) -> bool:
+        """Läs in grundinställningarna (bara inställningar, inga planer) från
+        demo-filen som följer med appen. Används när ingen fil återöppnas vid
+        start. Filen blir inte aktuellt dokument. Returnerar True om
+        inställningar hittades."""
+        base = _app_dir()
+        candidates = (
+            os.path.join(base, 'demo_planer.json'),           # exe-distribution
+            os.path.join(base, 'Saved', 'demo_planer.json'),  # källkod, byggd
+            os.path.join(base, 'templates', 'demo_settings.json'),
+        )
+        for path in candidates:
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+            except Exception:
+                continue
+            if not isinstance(data, dict):
+                continue
+            settings = data.get('settings', data)
+            if not isinstance(settings, dict) or 'sparande' not in settings:
+                continue
+            self._apply_settings(settings)
+            return True
+        return False
 
     def _try_auto_load(self) -> bool:
         state = self._read_state()
