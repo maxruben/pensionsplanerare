@@ -1,0 +1,10 @@
+# Kräver Python 3.9 eller senare (matplotlib 3.7 + reportlab 4 har 3.9 som golv;
+# rekommenderat: 3.11+ för bättre startup-prestanda). tkinter ingår i CPython
+# standard-installern på Windows — bocka 'tcl/tk' vid Python-install.
+reportlab>=4.0
+matplotlib>=3.7
+pyperclip>=1.8
+Pillow>=9.0
+# Valfri: krävs för 'Hämta från minpension.se' (Chrome remote-debugging-wizard).
+# Appen startar även utan selenium, men menyvalet blir då inaktivt.
+selenium>=4.6

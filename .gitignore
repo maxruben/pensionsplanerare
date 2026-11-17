@@ -1,0 +1,48 @@
+# Sparade konfigurationsfiler (Arkiv → Spara inställningar / Spara planer)
+installningar.json
+*_settings.json
+*_planer.json
+.pension_planner_state.json
+# Undantag: template-inställningarna för demo-genereringen ska trackas
+!templates/*_settings.json
+# Filer i Saved/ ignoreras helt — demo-planen genereras vid build av
+# scripts/generate_demo.py (som hämtar inställningar från
+# templates/demo_settings.json), så den behöver inte trackas här.
+Saved/*.json
+Saved/*.log
+Saved/*.tmp
+# Backup-filer överlag (t.ex. Saved/demo_planer.json.bak från restore_demo.py)
+*.bak
+Plans PDF/
+
+# Python bytecode cache
+__pycache__/
+*.pyc
+
+# Lokala skärmdumpar (root-anchored så docs/screenshots/ inte fångas)
+/Screenshots/
+
+# Chrome-profil för minpension-scraper-wizarden (cookies, cache, inställningar)
+.chrome_minpension/
+
+# PyInstaller build-artefakter
+build/
+dist/
+*.spec.bak
+
+# Runtime-logg- och felfiler
+pension_planner_startup.log
+pension_planner_error.log
+mix_debug.log
+suggest_debug.log
+selftest_debug.log
+
+mp.se clip/
+
+
+# Lokala verktygsinställningar
+.claude/
+.vscode/
+
+# Genereras av generate_test_plans.py
+/test_plans.json
