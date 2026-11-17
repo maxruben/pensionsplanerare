@@ -100,7 +100,14 @@ vänster för att gå vidare, och **Avbryt** stänger fönstret när som helst.
 1. **Starta Chrome.** Klicka **Starta Chrome**. Ett separat Chrome-fönster
    öppnas med minpension.se. Är ett sådant Chrome-fönster redan öppet
    sedan tidigare hoppas detta steg över och den inloggningen återanvänds.
-2. **Logga in och välj plan.** Logga in i Chrome-fönstret. Efter
+   Första gången startar Chrome med en tom profil och frågar om du vill
+   logga in i Chrome med ett Google-konto. Det behöver du inte — välj att
+   fortsätta utan att logga in. Därefter ber Chrome dig välja sökmotor
+   för att komma vidare. Välj **Google** och klicka **Ange som standard**,
+   så öppnas inloggningssidan på minpension.se.
+2. **Logga in på minpension.se och välj plan.** Logga in på minpension.se
+   i Chrome-fönstret, t.ex. med BankID. Det är den inloggningen som avses,
+   inte inloggning i Chrome med ett Google-konto. Efter
    inloggningen hamnar du på sidan **Dina planer**. Gå tillbaka till appen
    och klicka **Klar med inloggning** (eller **Fortsätt** om inloggningen
    återanvänds). Appen listar då dina sparade uttagsplaner. Skriv i
