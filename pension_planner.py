@@ -1084,6 +1084,79 @@ INSURANCE_COLORS = [
 ]
 
 
+def insurance_payout_totals(parsed, end_age):
+    """Totalt beräknad utbetalning per försäkring fram till planens slut.
+
+    Returnerar en lista parallell med parsed.insurances där varje element är
+    (före_skatt, efter_skatt) i kr, eller None när försäkringen saknar
+    belopp per brytpunkt. efter_skatt är None om planen saknar skatteuppgift.
+
+    Räknar på samma sätt som vyn "Inkomst per försäkring" (hovra över sista
+    kolumnen): månadsbeloppet vid varje brytpunkt gäller till nästa
+    brytpunkt, och sista perioden löper till december det år personen
+    fyller end_age. Efter skatt är ett estimat: före skatt × planens
+    skattefaktor per brytpunkt.
+    """
+    insurances = parsed.insurances
+    result = [None] * len(insurances)
+    all_bps = parsed.breakpoints
+    if not all_bps or not any(ins.amounts_before_tax for ins in insurances):
+        return result
+
+    # Hoppa över brytpunkter före första pensionsutbetalningen (lön-perioden)
+    start_idx = 0
+    if parsed.earliest_start:
+        start_idx = next(
+            (i for i, bp in enumerate(all_bps)
+             if bp.date >= parsed.earliest_start), 0,
+        )
+    bps = all_bps[start_idx:]
+    n = len(bps)
+
+    # Skattefaktor per brytpunkt; saknas efter-skatt används nästa kända
+    multipliers = [None] * n
+    for i, bp in enumerate(bps):
+        if bp.before_tax and bp.after_tax is not None and bp.before_tax > 0:
+            multipliers[i] = bp.after_tax / bp.before_tax
+    last_known = None
+    for i in reversed(range(n)):
+        if multipliers[i] is not None:
+            last_known = multipliers[i]
+        elif last_known is not None:
+            multipliers[i] = last_known
+    has_tax = any(m is not None for m in multipliers)
+
+    if parsed.birth_year:
+        plan_end = (parsed.birth_year + end_age, 12)
+    else:
+        plan_end = (bps[-1].date[0] + 30, bps[-1].date[1])
+
+    def _months(d1, d2):
+        return (d2[0] - d1[0]) * 12 + (d2[1] - d1[1])
+
+    period_months = [
+        _months(bps[k].date, bps[k + 1].date) if k < n - 1
+        else max(0, _months(bps[k].date, plan_end))
+        for k in range(n)
+    ]
+
+    for idx, ins in enumerate(insurances):
+        if not ins.amounts_before_tax:
+            continue
+        amounts = list(ins.amounts_before_tax[start_idx:])
+        before = 0
+        after = 0
+        for k in range(n):
+            amt = amounts[k] if k < len(amounts) else None
+            if amt is None:
+                continue
+            before += amt * period_months[k]
+            if multipliers[k] is not None:
+                after += round(amt * multipliers[k]) * period_months[k]
+        result[idx] = (round(before), round(after) if has_tax else None)
+    return result
+
+
 def _make_dot_image(color, size=14):
     """Skapa en liten färgad cirkel som tkinter-bild."""
     from PIL import Image, ImageDraw, ImageTk
@@ -1530,7 +1603,16 @@ class PlanTab:
         ins_frame = ttk.LabelFrame(left, text="Försäkringar (auto-fylld)", padding=6)
         ins_frame.grid(row=0, column=0, sticky='nsew', pady=(0, 4))
         ins_frame.columnconfigure(0, weight=1)
-        ins_frame.rowconfigure(0, weight=1)
+        ins_frame.rowconfigure(1, weight=1)
+        # Förklaring till totalraderna — visas bara när planen har sådana
+        self.ins_totals_label = ttk.Label(
+            ins_frame, text='', foreground='#666666',
+            font=('TkDefaultFont', 9), wraplength=320, justify='left',
+        )
+        self.ins_totals_label.grid(
+            row=0, column=0, columnspan=2, sticky='w', pady=(0, 4),
+        )
+        self.ins_totals_label.grid_remove()
         self.ins_tree = ttk.Treeview(ins_frame, show='tree', height=20)
         self.ins_tree.column('#0', width=320, stretch=True)
         self.ins_tree.tag_configure(
@@ -1542,8 +1624,8 @@ class PlanTab:
         self.ins_tree.tag_configure('pair_b', background='#f0f0f0')
         ins_ysb = ttk.Scrollbar(ins_frame, orient='vertical', command=self.ins_tree.yview)
         self.ins_tree.configure(yscrollcommand=ins_ysb.set)
-        self.ins_tree.grid(row=0, column=0, sticky='nsew')
-        ins_ysb.grid(row=0, column=1, sticky='ns')
+        self.ins_tree.grid(row=1, column=0, sticky='nsew')
+        ins_ysb.grid(row=1, column=1, sticky='ns')
         left.rowconfigure(0, weight=1)
 
         # ---- Höger panel: resultat + diagram + export ----
@@ -2096,12 +2178,63 @@ class PlanTab:
         self.parsed = None
         self.calc = None
         self.ins_tree.delete(*self.ins_tree.get_children())
+        self.ins_totals_label.grid_remove()
         self.result_tree.delete(*self.result_tree.get_children())
         self.app._refresh_monthly_window(self)
         self.ax.clear()
         self.canvas.draw()
         self._update_chart_min_label()
         self._update_tab_text('Ny plan')
+
+    def _fill_insurance_tree(self):
+        """Fyll försäkringslistan: namnrad, detaljrad med start och längd
+        samt — när planen har belopp per försäkring — en rad med totalt
+        beräknad utbetalning fram till planens slut."""
+        self.ins_tree.delete(*self.ins_tree.get_children())
+        self._dot_images = []
+        insurances = self.parsed.insurances if self.parsed else []
+        end_age = self.app.get_end_age()
+        self._ins_tree_end_age = end_age
+        totals = (
+            insurance_payout_totals(self.parsed, end_age) if self.parsed else []
+        )
+        if any(t is not None for t in totals):
+            if self.parsed.birth_year:
+                end_year = self.parsed.birth_year + end_age
+            else:
+                end_year = self.parsed.breakpoints[-1].date[0] + 30
+            self.ins_totals_label.config(text=(
+                f'Totalt = beräknad sammanlagd utbetalning till planens '
+                f'slut, år {end_year}.'
+            ))
+            self.ins_totals_label.grid()
+        else:
+            self.ins_totals_label.grid_remove()
+        for i, ins in enumerate(insurances):
+            bg_tag = 'pair_a' if i % 2 == 0 else 'pair_b'
+            color = INSURANCE_COLORS[i % len(INSURANCE_COLORS)]
+            dot = _make_dot_image(color)
+            self._dot_images.append(dot)
+            start = f"{ins.start[0]}-{ins.start[1]:02d}" if ins.start else '?'
+            dur = (
+                f"{ins.duration[0]} år, {ins.duration[1]} mån"
+                if ins.duration else 'Livsvarigt'
+            )
+            self.ins_tree.insert(
+                '', 'end', text=' ' + ins.name, image=dot, tags=(bg_tag,),
+            )
+            self.ins_tree.insert(
+                '', 'end', text=f'        {start}, {dur}',
+                tags=(bg_tag, 'details'),
+            )
+            if totals[i] is not None:
+                before, after = totals[i]
+                text = f'        Totalt {fmt_kr(before)} kr före skatt'
+                if after is not None:
+                    text += f', {fmt_kr(after)} kr efter'
+                self.ins_tree.insert(
+                    '', 'end', text=text, tags=(bg_tag, 'details'),
+                )
 
     def on_parse(self):
         text = self.paste_text.get('1.0', 'end')
@@ -2132,27 +2265,7 @@ class PlanTab:
 
         self._update_tab_text(self.parsed.plan_name)
 
-        self.ins_tree.delete(*self.ins_tree.get_children())
-        self._dot_images = []
-        for i, ins in enumerate(self.parsed.insurances):
-            bg_tag = 'pair_a' if i % 2 == 0 else 'pair_b'
-            color = INSURANCE_COLORS[i % len(INSURANCE_COLORS)]
-            dot = _make_dot_image(color)
-            self._dot_images.append(dot)
-            start = f"{ins.start[0]}-{ins.start[1]:02d}" if ins.start else '?'
-            dur = (
-                f"{ins.duration[0]} år, {ins.duration[1]} mån"
-                if ins.duration else 'Livsvarigt'
-            )
-            self.ins_tree.insert(
-                '', 'end', text=' ' + ins.name, image=dot,
-                tags=(bg_tag,),
-            )
-            self.ins_tree.insert(
-                '', 'end',
-                text=f'        {start}, {dur}',
-                tags=(bg_tag, 'details'),
-            )
+        self._fill_insurance_tree()
 
         self.recalculate()
 
@@ -2187,25 +2300,7 @@ class PlanTab:
             self.app._suppress_dirty = prev
 
         self._update_tab_text(parsed.plan_name)
-        self.ins_tree.delete(*self.ins_tree.get_children())
-        self._dot_images = []
-        for i, ins in enumerate(parsed.insurances):
-            bg_tag = 'pair_a' if i % 2 == 0 else 'pair_b'
-            color = INSURANCE_COLORS[i % len(INSURANCE_COLORS)]
-            dot = _make_dot_image(color)
-            self._dot_images.append(dot)
-            start = f"{ins.start[0]}-{ins.start[1]:02d}" if ins.start else '?'
-            dur = (
-                f"{ins.duration[0]} år, {ins.duration[1]} mån"
-                if ins.duration else 'Livsvarigt'
-            )
-            self.ins_tree.insert(
-                '', 'end', text=' ' + ins.name, image=dot, tags=(bg_tag,),
-            )
-            self.ins_tree.insert(
-                '', 'end', text=f'        {start}, {dur}',
-                tags=(bg_tag, 'details'),
-            )
+        self._fill_insurance_tree()
         self.recalculate()
         if (self.app._insurance_income_window is not None
                 and self.app._insurance_income_window.tab is self):
@@ -2254,6 +2349,10 @@ class PlanTab:
             growth_pct=self.app.get_growth_pct(),
             growth_mode=self.app.get_growth_mode(),
         )
+
+        # Totalbeloppen i försäkringslistan beror på "Räkna till ålder"
+        if getattr(self, '_ins_tree_end_age', None) != self.app.get_end_age():
+            self._fill_insurance_tree()
 
         # Uppdatera årlig tabell — färg baseras på årtal (samma år = samma färg över flikar)
         self.result_tree.delete(*self.result_tree.get_children())
@@ -9028,6 +9127,7 @@ class PensionPlannerApp:
             txt.config(state='disabled')
             return
         self._help_viewer_marks = {}
+        self._help_viewer_submarks = {}
         self._help_link_targets = {}
         self._help_viewer_images = []  # behåll PhotoImage-refs
         self._help_viewer_text = txt
@@ -9169,6 +9269,7 @@ class PensionPlannerApp:
                 self._help_viewer_back_scroll = 0.0
         try:
             self._help_viewer_marks = {}
+            self._help_viewer_submarks = {}
             self._help_link_targets = {}
             self._help_viewer_images = []
             self._help_viewer_current_file = md_path
@@ -9206,6 +9307,13 @@ class PensionPlannerApp:
             # dubbla bindestreck där rubriken har tankstreck)
             slug_title = self._md_slug(title)
             for key, m in marks.items():
+                if self._md_slug(key) == slug_title:
+                    mark = m
+                    break
+        if mark is None:
+            # Underrubrik (H3) — nås bara via länkar i texten
+            slug_title = self._md_slug(title)
+            for key, m in getattr(self, '_help_viewer_submarks', {}).items():
                 if self._md_slug(key) == slug_title:
                     mark = m
                     break
@@ -9347,6 +9455,16 @@ class PensionPlannerApp:
                     txt.mark_gravity(mark_name, 'left')
                     txt.insert('end', title + '\n', 'h2')
                 elif line.startswith('### '):
+                    # Underrubriker får länkmål för [text](#slug) men visas
+                    # inte i menyn "Gå till avsnitt". Vid samma titel flera
+                    # gånger gäller den första.
+                    title = line[4:].strip()
+                    submarks = self._help_viewer_submarks
+                    if title not in submarks:
+                        mark_name = f'sub_{len(submarks)}'
+                        submarks[title] = mark_name
+                        txt.mark_set(mark_name, 'end-1c')
+                        txt.mark_gravity(mark_name, 'left')
                     txt.insert('end', line[4:] + '\n', 'h3')
                 elif line.strip() == '---':
                     txt.insert('end', '─' * 60 + '\n', 'hr')

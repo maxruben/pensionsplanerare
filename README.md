@@ -193,10 +193,52 @@ rätt sida i Chrome och försöka igen.
 - **Månadsvis detalj** (eget fönster, knappen **Månadsvis detalj...** under
   *Aktiv plan*): inkomst före/efter skatt, utgifter och diff månad för månad.
   Fönstret följer den aktiva plan-fliken.
-- **Försäkringar** (vänster): färgkodad lista med start och längd
+- **Försäkringar** (vänster): färgkodad lista med start och längd. För
+  planer med belopp per försäkring (hämtade via **Hämta plan**) visas
+  även **totalt beräknad utbetalning** före och efter skatt fram till
+  planens slut — se [Totalbelopp per försäkring](#totalbelopp-per-försäkring).
 - **Globala inställningar** (uppe): sparande, tillväxt, utgiftsbrytpunkter
 
 ![Månadsvis detalj — eget fönster med inkomst, utgifter och diff per månad för den aktiva planen](docs/screenshots/monthly_detail.png)
+
+### Totalbelopp per försäkring
+
+Raden **Totalt … kr före skatt, … kr efter** under varje försäkring är
+den sammanlagda utbetalning som planen ger från försäkringen, från
+uttagsstart till planens slut. Planens slut är december det år du fyller
+**Räkna till ålder**; årtalet står överst i försäkringslistan. Ändrar du
+**Räkna till ålder** räknas beloppen om.
+
+**Så räknas beloppen:**
+- **Före skatt:** planens månadsbelopp för försäkringen vid varje
+  brytpunkt gånger antalet månader till nästa brytpunkt, summerat över
+  alla perioder. Sista perioden löper till planens slut.
+- **Efter skatt:** varje periods belopp minskas med planens skattesats
+  för just den perioden (planens summa efter skatt delat med summa före
+  skatt vid brytpunkten). Det är ett estimat — minpension.se anger skatt
+  på hela inkomsten, inte per försäkring.
+- Det är samma summor som visas när du hovrar över sista kolumnen i
+  [Inkomst per försäkring](#inkomst-per-försäkring).
+
+**Beloppen är inte försäkringens kapital.** De stämmer därför inte med
+"Kapital idag" på minpension.se, som bygger på vad du hittills har tjänat
+in. Totalbeloppen är prognostiserade utbetalningar och beror bland annat
+på:
+- **Livsvarigt eller tidsbegränsat uttag.** En livsvarig pension
+  betalas ut ända till planens slut, så totalen växer med **Räkna till
+  ålder**. En tidsbegränsad försäkring betalas ut under sin uttagslängd
+  och påverkas inte av en högre slutålder.
+- **När pengarna betalas ut.** Skatten är lägre från året efter att du
+  fyllt riktåldern, när det förhöjda grundavdraget gäller (se
+  [Skattesänkningen året efter riktåldern](#skattesänkningen-året-efter-riktåldern)).
+  Samma belopp före skatt ger därför mer efter skatt om det betalas ut
+  senare, och skatten beror också på hur stor den totala inkomsten är
+  under perioden.
+- **Planens prognos.** Månadsbeloppen är minpension.se:s prognoser för
+  just den här uttagsplanen, inklusive antagen framtida värdeutveckling.
+
+Planer utan belopp per försäkring (inklistrade utan utfällda kategorier)
+visar inga totalbelopp.
 
 ### Kvar-strategier
 - **Kvar #1 "Spara allt"**: hela överskottet läggs till sparandet
