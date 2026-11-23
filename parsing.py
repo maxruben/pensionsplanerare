@@ -357,15 +357,23 @@ def _parse_per_insurance_amounts(lines: list, num_dates: int, insurances: list) 
             i += 1
             continue
 
-        # Hitta matchande försäkring via normaliserat namn
+        # Hitta matchande försäkring via normaliserat namn. En beloppsrad
+        # följs alltid av värden. Är en enskild försäkring utfälld har
+        # detaljsektionens rubrik ("AMF -ITPK") samma normaliserade namn men
+        # följs av "Försäkringsnummer: …" — den får inte förbruka nästa
+        # försäkring med samma namn.
         target = _normalize_name(line)
         matched_avail_idx = None
-        for j, ins in enumerate(available):
-            # Återanvänd cachen — hitta originalens index för att kunna matcha
-            orig_idx = insurances.index(ins)
-            if norm_names[orig_idx] == target:
-                matched_avail_idx = j
-                break
+        k = i + 1
+        while k < len(lines) and not lines[k].strip():
+            k += 1
+        if k < len(lines) and _is_value_line(lines[k]):
+            for j, ins in enumerate(available):
+                # Återanvänd cachen — hitta originalens index för att kunna matcha
+                orig_idx = insurances.index(ins)
+                if norm_names[orig_idx] == target:
+                    matched_avail_idx = j
+                    break
 
         if matched_avail_idx is not None:
             amounts, i = _read_value_lines(lines, i + 1, num_dates)
